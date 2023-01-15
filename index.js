@@ -21,7 +21,9 @@ mongoose
 app.set('view engine', 'ejs');
 app.set('views', 'views');
 app.use(express.urlencoded({ extended: true }));
-app.use(session({ secret: 'notagoodsecret' }));
+app.use(
+  session({ secret: 'notagoodsecret', resave: false, saveUninitialized: true })
+);
 
 /*middleware to verify if someone is logged in 
 cause most of the times we want to protect multiple routes/end points/entire router eg. /admin*/
@@ -45,10 +47,10 @@ app.get('/register', (req, res) => {
 app.post('/register', async (req, res) => {
   // res.send(req.body);
   const { password, username } = req.body;
-  const hash = await bcrypt.hash(password, 12);
+  // const hash = await bcrypt.hash(password, 12);
   const user = new User({
     username,
-    password: hash,
+    password,
   });
   await user.save();
   req.session.user_id = user._id;
@@ -63,11 +65,12 @@ app.get('/login', (req, res) => {
 app.post('/login', async (req, res) => {
   // res.send(req.body);
   const { username, password } = req.body;
-  const user = await User.findOne({ username });
-  //never give hint of what exactly went wrong
-  const validPassword = await bcrypt.compare(password, user.password);
-  if (validPassword) {
-    req.session.user_id = user._id;
+  const foundUser = await User.findAndValidate(username, password);
+  // const user = await User.findOne({ username });
+  // //never give hint of what exactly went wrong
+  // const validPassword = await bcrypt.compare(password, user.password);
+  if (foundUser) {
+    req.session.user_id = foundUser._id;
     // res.send('Welcome');
     res.redirect('/secret');
   } else {
@@ -81,11 +84,14 @@ app.post('/logout', (req, res) => {
   res.redirect('/login');
 });
 
-app.get('/secret', (req, res) => {
-  if (!req.session.user_id) {
-    return res.redirect('/login');
-  }
+app.get('/secret', requireLogin, (req, res) => {
   res.render('secret');
+  // res.send('this is secret!!unless you are logged in');
+});
+
+app.get('/topsecret', requireLogin, (req, res) => {
+  // res.render('secret');
+  res.send('topsecret');
   // res.send('this is secret!!unless you are logged in');
 });
 
